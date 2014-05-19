@@ -121,7 +121,7 @@ module Aweplug
             } 
 
 
-            unless !@push_to_searchisko || site.profile =~ /development/
+            unless !@push_to_searchisko || !site.push_to_searchisko 
               searchisko.push_content(metadata[:searchisko_type], 
                 metadata[:searchisko_id], 
                 searchisko_hash.to_json)
