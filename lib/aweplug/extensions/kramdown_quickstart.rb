@@ -99,6 +99,11 @@ module Aweplug
             metadata[:searchisko_type] = 'jbossdeveloper_quickstart'
             converted_html = metadata.delete :converted
 
+            metadata[:author].split(',').each_with_index do |author, i|
+              metadata[:author] = author if i == 0
+              metadata[:contributors] << author unless i == 0
+            end
+
             unless metadata[:images].empty?
               metadata[:images].each do |img|
                 image_path = Pathname.new(@repo).join(img) 
