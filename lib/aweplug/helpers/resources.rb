@@ -240,8 +240,21 @@ module Aweplug
       # This currently only supports resoures loaded from #{site.base_url}
       #
       # Note that this helper is NOT tested outside of Slim
-      def javascripts(id, &block)
-        Javascript.new(site).resources(id, yield)
+      def javascripts(id, deferred = false, &block)
+        out = Javascript.new(site).resources(id, yield)
+        if deferred
+          @deferred_javascripts ||= {}
+          @deferred_javascripts[id] = out
+          page.extra_javascripts ||= []
+          page.extra_javascripts << id
+          ""
+        else
+          out
+        end
+      end
+
+      def deferred_javascripts(id)
+        @deferred_javascripts[id]
       end
 
       # Public: Slim helper that captures the content of a block
