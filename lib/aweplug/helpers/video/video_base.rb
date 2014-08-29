@@ -50,12 +50,37 @@ module Aweplug
           out
         end
 
-        def author
-          raise NotImplementedError
+        def normalized_author
+          normalized_cast[0]
         end
 
         def cast
           raise NotImplementedError
+        end
+
+        def normalized_cast
+          if @ncast.nil?
+            @ncast = []
+            unless cast.empty?
+              searchisko = Aweplug::Helpers::Searchisko.new({:base_url => @site.dcp_base_url, 
+                                                :authenticate => true, 
+                                                :searchisko_username => ENV['dcp_user'], 
+                                                :searchisko_password => ENV['dcp_password'], 
+                                                :cache => @site.cache,
+                                                :logger => @site.log_faraday,
+                                                :searchisko_warnings => @site.searchisko_warnings})
+              cast.each do |c|
+                searchisko.normalize("contributor_profile_by_#{provider}_username", c['username']) do |contributor|
+                  if !contributor['sys_contributor'].nil?
+                    @ncast << add_social_links(contributor['contributor_profile'])
+                  elsif !c['display_name'].nil? && !c['display_name'].strip.empty?
+                    @ncast << OpenStruct.new({:sys_title => c['display_name']})
+                  end
+                end
+              end 
+            end
+          end
+          @ncast
         end
 
         def tags
@@ -69,7 +94,21 @@ module Aweplug
         end
 
         def searchisko_payload
-          raise NotImplementedError
+          unless @fetch_failed
+            author = cast[0]
+            {
+              :sys_title => title,
+              :sys_description => description,
+              :sys_url_view => "#{@site.base_url}/video/vimeo/#{id}",
+              :author => author.nil? ? nil : author['username'],
+              :contributors => cast.empty? ? nil : cast.collect {|c| c['username']},
+              :sys_created => upload_date_iso8601,
+              :sys_last_activity_date => modified_date_iso8601,
+              :duration => duration_in_seconds,
+              :thumbnail => thumb_url,
+              :tags => tags
+            }.reject{ |k,v| v.nil? }
+          end
         end
 
         def contributor_exclude
@@ -81,28 +120,23 @@ module Aweplug
           {}
         end
 
-        def duration
-          raise NotImplementedError
+        def duration_time
+          Time.at(Integer(@video["duration"])).utc
         end
 
+
+        def duration
+          duration_time.strftime("%T")
+        end
+        
         def duration_in_seconds
-          raise NotImplementedError
+          duration_time.to_i
+          #a = duration_time.split(":").reverse
+          #(a.length > 0 ? a[0].to_i : 0) + (a.length > 1 ? a[1].to_i * 60 : 0) + (a.length > 2 ? a[2].to_i * 60 : 0)
         end
 
         def duration_iso8601
-          raise NotImplementedError
-        end
-
-        def load_cast
-          @cast = []
-          if @site.identity_manager && @video['cast']
-            cast = @video['cast']
-            if cast['member'].is_a?(Hash) && cast['member']['username'] != 'jbossdeveloper'
-              prototype = Aweplug::Identity::Contributor.new({"accounts" => {"vimeo.com" => {"username" => cast['member']['username']}}})
-              contrib = @site.identity_manager.get(prototype)
-              @cast << contrib
-            end 
-          end 
+          duration_time.strftime("PT%HH%MM%SS")
         end
 
         def pretty_date(date_str)
