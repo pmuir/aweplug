@@ -4,18 +4,16 @@ module Aweplug
       module Helpers
 
         def render(video, default_snippet, snippet)
-          unless video.fetch_failed
-            if snippet
-              path = snippet
-            else
-              path = default_snippet
-            end
-            if !File.exists?("#{site.dir}/_partials/#{path}")
-              path = Pathname.new(File.dirname(__FILE__)).join(default_snippet)
-              Tilt.new(path.to_s).render(Object.new, :video => video, :page => page, :site => site)
-            else
-              partial path, {:video => video, :parent => page}
-            end
+          if snippet
+            path = snippet
+          else
+            path = default_snippet
+          end
+          if !File.exists?("#{site.dir}/_partials/#{path}")
+            path = Pathname.new(File.dirname(__FILE__)).join(default_snippet)
+            Tilt.new(path.to_s).render(Object.new, :video => video, :page => page, :site => site)
+          else
+            partial path, {:video => video, :parent => page}
           end
         end
 

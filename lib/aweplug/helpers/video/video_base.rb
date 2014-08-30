@@ -10,23 +10,37 @@ module Aweplug
           end
           @cache = site.cache
           @video = video
+          @searchisko = Aweplug::Helpers::Searchisko.new({:base_url => @site.dcp_base_url, 
+                                                          :authenticate => true, 
+                                                          :searchisko_username => ENV['dcp_user'], 
+                                                          :searchisko_password => ENV['dcp_password'], 
+                                                          :cache => @site.cache,
+                                                          :logger => @site.log_faraday,
+                                                          :searchisko_warnings => @site.searchisko_warnings})
         end
 
         # Create the basic methods
-        [:detail_url, :height, :id, :thumb_url, :title, :width].each do |attr|
+        [:id, :title, :tags].each do |attr|
           define_method attr.to_s do
             @video[attr.to_s] || ''
           end
         end
 
         # Create date methods
-        [:modified_date, :upload_date, :update_date].each do |attr|
+        [:modified_date, :upload_date].each do |attr|
           define_method attr.to_s do
             pretty_date(@video[attr.to_s])
           end
 
           define_method "#{attr.to_s}_iso8601" do
             DateTime.parse(@video[attr.to_s]).iso8601
+          end
+        end
+
+        # Create the unimplemented methods
+        [:cast, :duration, :height, :width, :normalized_cast].each do |attr|
+          define_method attr.to_s do
+            nil
           end
         end
         
@@ -50,65 +64,28 @@ module Aweplug
           out
         end
 
+        def detail_url
+          "#{@site.base_url}/video/#{provider}/#{id}"
+        end
+
         def normalized_author
           normalized_cast[0]
         end
 
-        def cast
-          raise NotImplementedError
-        end
-
-        def normalized_cast
-          if @ncast.nil?
-            @ncast = []
-            unless cast.empty?
-              searchisko = Aweplug::Helpers::Searchisko.new({:base_url => @site.dcp_base_url, 
-                                                :authenticate => true, 
-                                                :searchisko_username => ENV['dcp_user'], 
-                                                :searchisko_password => ENV['dcp_password'], 
-                                                :cache => @site.cache,
-                                                :logger => @site.log_faraday,
-                                                :searchisko_warnings => @site.searchisko_warnings})
-              cast.each do |c|
-                searchisko.normalize("contributor_profile_by_#{provider}_username", c['username']) do |contributor|
-                  if !contributor['sys_contributor'].nil?
-                    @ncast << add_social_links(contributor['contributor_profile'])
-                  elsif !c['display_name'].nil? && !c['display_name'].strip.empty?
-                    @ncast << OpenStruct.new({:sys_title => c['display_name']})
-                  end
-                end
-              end 
-            end
-          end
-          @ncast
-        end
-
-        def tags
-          r = []
-          if @video['tags'].is_a? Hash
-            @video['tags']['tag'].inject([]) do |result, element|
-              r << element['normalized']
-            end
-          end
-          r
-        end
-
         def searchisko_payload
-          unless @fetch_failed
-            author = cast[0]
-            {
-              :sys_title => title,
-              :sys_description => description,
-              :sys_url_view => "#{@site.base_url}/video/vimeo/#{id}",
-              :author => author.nil? ? nil : author['username'],
-              :contributors => cast.empty? ? nil : cast.collect {|c| c['username']},
-              :sys_created => upload_date_iso8601,
-              :sys_last_activity_date => modified_date_iso8601,
-              :duration => duration_in_seconds,
-              :thumbnail => thumb_url,
-              :tags => tags
-            }.reject{ |k,v| v.nil? }
-          end
+          author = cast[0]
+          {
+            :sys_title => title,
+            :sys_description => description,
+            :sys_url_view => "#{@site.base_url}/video/vimeo/#{id}",
+            :author => author.nil? ? nil : author['username'],
+            :contributors => cast.empty? ? nil : cast.collect {|c| c['username']},
+            :sys_created => upload_date_iso8601,
+            :sys_last_activity_date => modified_date_iso8601,
+            :duration => duration.to_i,
+            :thumbnail => thumb_url,
+            :tags => tags
+          }.reject{ |k,v| v.nil? }
         end
 
         def contributor_exclude
@@ -118,25 +95,6 @@ module Aweplug
             return yaml['vimeo'] unless yaml['vimeo'].nil?
           end
           {}
-        end
-
-        def duration_time
-          Time.at(Integer(@video["duration"])).utc
-        end
-
-
-        def duration
-          duration_time.strftime("%T")
-        end
-        
-        def duration_in_seconds
-          duration_time.to_i
-          #a = duration_time.split(":").reverse
-          #(a.length > 0 ? a[0].to_i : 0) + (a.length > 1 ? a[1].to_i * 60 : 0) + (a.length > 2 ? a[2].to_i * 60 : 0)
-        end
-
-        def duration_iso8601
-          duration_time.strftime("PT%HH%MM%SS")
         end
 
         def pretty_date(date_str)
