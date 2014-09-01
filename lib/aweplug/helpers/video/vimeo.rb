@@ -1,5 +1,5 @@
 require 'oauth'
-require 'aweplug/cache/yaml_file_cache'
+require 'aweplug/cache/file_cache'
 require 'aweplug/helpers/video/vimeo_video'
 require 'aweplug/helpers/searchisko_social'
 require 'aweplug/helpers/video/helpers'
@@ -17,7 +17,7 @@ module Aweplug
         def initialize site
           @site = site
           site.send("vimeo_cache=", {}) if site.vimeo_cache.nil?
-          site.send('cache=', Aweplug::Cache::YamlFileCache.new) if site.cache.nil?
+          site.send('cache=', Aweplug::Cache::FileCache.new) if site.cache.nil?
         end
 
         def add(url, product: nil, push_to_searchisko: true)
